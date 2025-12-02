@@ -11,5 +11,19 @@ source ./setup.sh
 Run
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+```
+
+## Running stuff
+
+```bash
+python -m models.aiming.baseline_model
+```
+
+```bash
+python -m visual_aiming_demo
+```
+
+```bash
+python -m game_demo
 ```
