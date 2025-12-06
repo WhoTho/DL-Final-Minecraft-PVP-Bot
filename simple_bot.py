@@ -2,6 +2,7 @@
 import math
 from simulator.server import MinecraftSimulationServer
 from helpers import vec3, angles
+import numpy as np
 
 
 class SimpleBot:
@@ -10,10 +11,9 @@ class SimpleBot:
     def __init__(self, bot_id: int, target_id: int):
         self.bot_id = bot_id
         self.target_id = target_id
-        self.attack_interval = 2  # Attack every 2 ticks
+        self.attack_interval = 3  # Attack every 2 ticks
 
     def update(self, server: MinecraftSimulationServer):
-        return
         """Update the bot AI to chase and attack the target player"""
         bot = server.get_entity(self.bot_id)
         target = server.get_entity(self.target_id)

@@ -2,6 +2,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from helpers import vec3, angles
+from simulator import combat
+from helpers import world
 
 MAX_DEGREES_PER_STEP = 360 / 0.5 / 20  # 360 degrees in 0.5s at 20 steps/s
 
@@ -46,11 +48,11 @@ class AimingEnv(gym.Env):
         )
 
         self.observation_space = spaces.Box(
-            low=-np.radians(180), high=np.radians(180), shape=(2,), dtype=np.float32
+            low=-1, high=1, shape=(3,), dtype=np.float32
         )
 
         # Episode length
-        self.max_steps = 200
+        self.max_steps = 100
         self.current_step = 0
 
     def reset(self, seed=None, options=None):
@@ -98,7 +100,7 @@ class AimingEnv(gym.Env):
         )  # Clamp pitch
 
         # Compute reward
-        reward = self._compute_reward()
+        reward = self._compute_reward(action)
 
         # Update target position
         self.target_pos = vec3.add(self.target_pos, self.target_vel)
@@ -113,46 +115,85 @@ class AimingEnv(gym.Env):
 
     def _get_obs(self):
         """Get current observation"""
-        target_to_player = vec3.subtract(self.target_pos, self.player_pos)
-        target_yaw, target_pitch, distance_to_target = angles.vec_to_yaw_pitch_distance(
-            target_to_player
-        )
-        target_yaw_diff = angles.yaw_difference(self.yaw, target_yaw)
-        target_pitch_diff = angles.pitch_difference(self.pitch, target_pitch)
+        forward, right, up = world.yaw_pitch_to_basis_vectors(self.yaw, self.pitch)
 
-        return np.array(
+        agent_to_target_world = vec3.subtract(self.target_pos, self.player_pos)
+
+        agent_to_target_local = world.world_to_local(
+            agent_to_target_world, forward, right, up
+        )
+        agent_to_target_local_dir, agent_to_target_distance = vec3.direction_and_length(
+            agent_to_target_local
+        )
+
+        target_velocity_local = world.world_to_local(
+            self.target_vel, forward, right, up
+        )
+        target_velocity_local_dir, target_velocity_speed = vec3.direction_and_length(
+            target_velocity_local
+        )
+
+        obs = np.array(
             [
-                # distance_to_target,
-                target_yaw_diff,
-                target_pitch_diff,
+                agent_to_target_local_dir[0],
+                agent_to_target_local_dir[1],
+                agent_to_target_local_dir[2],
+                agent_to_target_distance / 10.0,  # normalize distance
+                target_velocity_local_dir[0],
+                target_velocity_local_dir[1],
+                target_velocity_local_dir[2],
+                target_velocity_speed / 0.1,  # normalize speed
             ],
             dtype=np.float32,
         )
 
-    def _compute_reward(self):
-        """Reward based on how close the agent is aiming at the target."""
+        return np.clip(obs, -1.0, 1.0)
+
+    def _compute_reward(self, action):
+        """Reward based on how close the agent is aiming at the target, with jitter penalty."""
         # Direction to target
         direction_to_target = vec3.subtract(self.target_pos, self.player_pos)
-        target_yaw, target_pitch, _ = angles.vec_to_yaw_pitch_distance(
+        target_yaw, target_pitch, distance_to_target = angles.vec_to_yaw_pitch_distance(
             direction_to_target
         )
 
         # Angular error using proper angle difference functions
         yaw_error = abs(angles.yaw_difference(self.yaw, target_yaw))
         pitch_error = abs(angles.pitch_difference(self.pitch, target_pitch))
-        angular_error = yaw_error + pitch_error
+        # angular_error = yaw_error + pitch_error
 
-        # MAX_ANGLE_ERROR = np.radians(180 + 90)  # Max possible error (yaw + pitch)
-
-        # Reward is negative error, scaled and squared
-        # reward = -(1 - (1 - (angular_error / MAX_ANGLE_ERROR)) ** 2)
-        reward = -(yaw_error**2 + pitch_error**2) * 10.0  # Scale factor
+        # Base reward is negative error, scaled and squared
+        reward = -(yaw_error**2 + pitch_error**2) * 1.0  # Scale factor
 
         # Bonus if very close to perfect aim (within ~1.15 degrees)
-        if yaw_error < 0.02 and pitch_error < 0.02:
-            reward += 2.0
-        elif yaw_error < 0.05 and pitch_error < 0.05:
-            reward += 0.5
+        # if yaw_error < 0.02 and pitch_error < 0.02:
+        #     reward += 2.0
+        # elif yaw_error < 0.05 and pitch_error < 0.05:
+        #     reward += 0.5
+
+        # penalty for movement
+        reward -= 0.1 * (abs(action[0]) + abs(action[1]))
+
+        if yaw_error < np.radians(10) and pitch_error < np.radians(
+            30
+        ):  # quick check to avoid unnecessary calculations
+            # reward for looking at closest axis
+            target_aabb_min = vec3.subtract(
+                self.target_pos, vec3.from_list([0.3, 1.62, 0.3])
+            )
+            target_aabb_max = vec3.add(
+                self.target_pos, vec3.from_list([0.3, 1.8 - 1.62, 0.3])
+            )
+            look_dir = vec3.from_yaw_pitch(self.yaw, self.pitch)
+            did_hit, distance_to_intersection = combat.line_intersects_aabb(
+                self.player_pos,
+                look_dir,
+                target_aabb_min,
+                target_aabb_max,
+            )
+
+            if did_hit:
+                reward += (distance_to_target - distance_to_intersection + 1) * 5.0
 
         return reward
 
@@ -195,4 +236,4 @@ class AimingEnv(gym.Env):
                 f"Error:   yaw={np.degrees(yaw_error):.1f}°, pitch={np.degrees(pitch_error):.1f}°"
             )
             print(f"Distance: {distance:.2f}")
-            print("-" * 40)
+            print("-" * 50)

@@ -4,7 +4,7 @@ Baseline aiming model using Stable Baselines3 RL algorithms
 
 import numpy as np
 import gymnasium as gym
-from environments.aiming.environment import AimingEnv
+from environments.movement.environment import MovementEnv
 
 try:
     from stable_baselines3 import PPO, SAC, TD3, A2C
@@ -27,7 +27,11 @@ except ImportError:
     SB3_AVAILABLE = False
 
 
-class AimingModel:
+class MovementModel:
+    """
+    Baseline model using various RL algorithms from Stable Baselines3
+    """
+
     def __init__(self, env_kwargs=None, model_kwargs=None):
         self.env_kwargs = env_kwargs or {}
         self.model_kwargs = model_kwargs or {}
@@ -35,11 +39,11 @@ class AimingModel:
 
         # Create vectorized training environment (4 parallel envs)
         self.env = make_vec_env(
-            lambda: AimingEnv(**self.env_kwargs),
+            lambda: MovementEnv(**self.env_kwargs),
             n_envs=self.n_envs,
         )
         # Single eval environment
-        self.eval_env = AimingEnv(**self.env_kwargs)
+        self.eval_env = MovementEnv(**self.env_kwargs)
 
         default_kwargs = {
             "learning_rate": 3e-4,
@@ -85,7 +89,7 @@ class AimingModel:
         )
 
         # Train the model
-        print(f"Training aiming model for {total_timesteps} timesteps...")
+        print(f"Training movement model for {total_timesteps} timesteps...")
         self.model.learn(
             total_timesteps=total_timesteps, callback=eval_callback, progress_bar=True
         )
@@ -102,7 +106,7 @@ class AimingModel:
         if self.model is None:
             raise ValueError("Model not trained or loaded yet")
 
-        env = AimingEnv(render_mode="human" if render else None)
+        env = MovementEnv(render_mode="human" if render else None)
 
         mean_reward, std_reward = evaluate_policy(
             self.model,
@@ -127,7 +131,7 @@ class AimingModel:
         """Load a trained model"""
         # Recreate vectorized environment for loading
         env = make_vec_env(
-            lambda: AimingEnv(**self.env_kwargs),
+            lambda: MovementEnv(**self.env_kwargs),
             n_envs=self.n_envs,
         )
         self.model = PPO.load(path, env=env)
@@ -150,12 +154,12 @@ def train_model(timesteps: int):
     Train the best performing model with more timesteps
     """
     print(f"Training PPO model for {timesteps} timesteps...")
-    model = AimingModel()
+    model = MovementModel()
     save_path = model.train(
         total_timesteps=timesteps,
         eval_freq=timesteps // 20,
         eval_episodes=10,
-        save_path=f"best_baseline_ppo_aiming",
+        save_path=f"best_baseline_ppo_movement",
     )
 
     # Final evaluation
@@ -166,10 +170,4 @@ def train_model(timesteps: int):
 
 
 if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        timesteps = int(sys.argv[1])
-    else:
-        timesteps = 100_000
-    train_model(timesteps=timesteps)
+    train_model(timesteps=1_000_000)

@@ -8,7 +8,7 @@ INVULNERABILITY_TICKS_AFTER_HIT = 10  # 20 ticks = 1 second so 10 ticks = 0.5 se
 
 KNOCKBACK_STRENGTH = 0.4
 SPRINTING_KNOCKBACK_STRENGTH = 1.0
-UPWARD_KNOCKBACK = 0.4
+VERTICAL_KNOCKBACK = 0.4
 
 
 def line_intersects_aabb(
@@ -92,6 +92,28 @@ def raycast(attacker: Entity, entities: list[Entity]):
     return closest_entity
 
 
+def apply_knockback(
+    target: Entity, ratio_x: float, ratio_z: float, is_sprint_hit: bool
+):
+    """
+    Apply knockback to the target entity based on the attack direction and whether the attacker is sprinting.
+    """
+    strength = SPRINTING_KNOCKBACK_STRENGTH if is_sprint_hit else KNOCKBACK_STRENGTH
+
+    f = math.sqrt(ratio_x * ratio_x + ratio_z * ratio_z)
+    if f >= 0.0001:
+        target.velocity[0] /= 2.0
+        target.velocity[1] /= 2.0
+        target.velocity[2] /= 2.0
+
+        target.velocity[0] += (ratio_x / f) * strength
+        target.velocity[2] += (ratio_z / f) * strength
+
+        target.velocity[1] += VERTICAL_KNOCKBACK
+        if target.velocity[1] > VERTICAL_KNOCKBACK:
+            target.velocity[1] = VERTICAL_KNOCKBACK
+
+
 def try_attack(attacker: Entity, entities: list[Entity]) -> bool:
     """
     Attempt to attack an entity within reach. Returns True if an entity was hit.
@@ -110,24 +132,10 @@ def try_attack(attacker: Entity, entities: list[Entity]) -> bool:
     target.health -= DAMAGE_AMOUNT
     target.invulnerablility_ticks = INVULNERABILITY_TICKS_AFTER_HIT
 
-    target.velocity[0] /= 2.0
-    target.velocity[1] /= 2.0
-    target.velocity[2] /= 2.0
+    ratio_x = target.position[0] - attacker.position[0]
+    ratio_z = target.position[2] - attacker.position[2]
 
-    look_vec = vec3.from_yaw_pitch(attacker.yaw, attacker.pitch)
-    ratioX = look_vec[0]
-    ratioZ = look_vec[2]
-
-    strength = (
-        SPRINTING_KNOCKBACK_STRENGTH if attacker.is_sprinting else KNOCKBACK_STRENGTH
-    )
-
-    f = math.sqrt(ratioX * ratioX + ratioZ * ratioZ)
-    if f != 0:
-        target.velocity[0] += (ratioX / f) * strength
-        target.velocity[2] += (ratioZ / f) * strength
-        if target.on_ground:
-            target.velocity[1] = UPWARD_KNOCKBACK
+    apply_knockback(target, ratio_x, ratio_z, attacker.is_sprinting)
 
     # hit slowdown and sprint cancel
     attacker.velocity[0] *= ATTACK_SLOWDOWN_FACTOR

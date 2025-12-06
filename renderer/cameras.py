@@ -97,6 +97,10 @@ class FirstPersonCamera:
         sy = self.height / 2 - (y * f / z)
         return (int(sx), int(sy))
 
+    def world_to_screen(self, world_pos):
+        cam_pos = self.world_to_camera(world_pos)
+        return self.camera_to_screen(cam_pos)
+
     # def camera_to_world(self, cam_pos):
     #     x, y, z = cam_pos
 

@@ -79,6 +79,18 @@ class Entity(RectPrism):
         aabb_max = vec3.from_list([x + half_w, y + h, z + half_d])
         return aabb_min, aabb_max
 
+    def get_eye_position(self) -> vec3.VEC3:
+        """
+        Returns the world position of the entity's eyes.
+        """
+        return vec3.from_list(
+            [
+                self.position[0] + self.width / 2,
+                self.position[1] + self.eye_height,
+                self.position[2] + self.depth / 2,
+            ]
+        )
+
 
 # class Player(RectPrism):
 #     """

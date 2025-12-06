@@ -82,6 +82,11 @@ def distance(v1: VEC3, v2: VEC3) -> float:
     return float(np.linalg.norm(v1 - v2))
 
 
+def distance_xz(v1: VEC3, v2: VEC3) -> float:
+    diff = v1 - v2
+    return float(math.sqrt(diff[0] * diff[0] + diff[2] * diff[2]))
+
+
 def distance_squared(v1: VEC3, v2: VEC3) -> float:
     diff = v1 - v2
     return float(np.dot(diff, diff))
@@ -90,3 +95,15 @@ def distance_squared(v1: VEC3, v2: VEC3) -> float:
 def copy(v: VEC3) -> VEC3:
     "Returns a new vector that is a copy of v"
     return np.copy(v)
+
+
+def direction_and_length(v: VEC3) -> tuple[VEC3, float]:
+    """
+    Fast extraction of direction vector and length.
+    Returns (direction_vector, length).
+    If vector is zero, returns (zero_vector, 0.0).
+    """
+    mag = np.linalg.norm(v)
+    if mag == 0:
+        return v, 0.0
+    return v / mag, float(mag)

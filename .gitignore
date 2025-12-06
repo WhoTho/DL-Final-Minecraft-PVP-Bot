@@ -1,4 +1,6 @@
 venv/
+*_logs/
+best_*/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

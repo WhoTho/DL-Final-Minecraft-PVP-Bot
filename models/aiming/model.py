@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 from collections import deque
 import random
-from enviroments.aiming.enviroment import AimingEnv
+from environments.aiming.environment import AimingEnv
 
 
 class AimingDQN(nn.Module):
@@ -235,7 +235,7 @@ def train_aiming_agent(episodes=5000, render_every=100):
 
 def test_aiming_agent(model_path, episodes=10):
     """Test a trained aiming agent"""
-    from enviroments.aiming.enviroment import AimingEnv
+    from environments.aiming.environment import AimingEnv
 
     env = AimingEnv(render_mode="human")
     agent = AimingAgent()

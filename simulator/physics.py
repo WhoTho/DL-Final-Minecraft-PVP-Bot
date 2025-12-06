@@ -114,6 +114,19 @@ class InputState:
     yaw: float = 0.0
     pitch: float = 0.0
 
+    def clone(self) -> "InputState":
+        return InputState(
+            w=self.w,
+            a=self.a,
+            s=self.s,
+            d=self.d,
+            sprint=self.sprint,
+            space=self.space,
+            click=self.click,
+            yaw=self.yaw,
+            pitch=self.pitch,
+        )
+
 
 def simulate(entity: Entity, controls: InputState):
     # update entity state based on controls

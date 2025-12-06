@@ -11,15 +11,9 @@ from renderer.cameras import FirstPersonCamera
 from renderer.renderer import Renderer3D
 from renderer.objects import render_entity
 from simulator.objects import Entity
-from enviroments.aiming.enviroment import AimingEnv
-from models.aiming.model import AimingAgent
-from models.aiming.baseline_model import BaselineAimingModel
-from helpers import vec3
-from helpers.angles import (
-    vec_to_yaw_pitch_distance,
-    yaw_difference,
-    pitch_difference,
-)
+from environments.aiming.environment import AimingEnv
+from models.aiming.baseline_model import AimingModel
+from helpers import vec3, world, angles
 
 
 class VisualAimingDemo:
@@ -42,7 +36,7 @@ class VisualAimingDemo:
             try:
                 # self.agent = AimingAgent()
                 # self.agent.load(model_path)
-                self.agent = BaselineAimingModel()
+                self.agent = AimingModel()
                 self.agent.load(model_path)
 
                 self.mode = "ai"
@@ -57,9 +51,16 @@ class VisualAimingDemo:
         self.last_step_time = 0
 
         # Visual elements
+        self.agent_entity = Entity(
+            object_id=998,
+            position=vec3.zero(),
+            color=(0, 255, 0),
+        )
+
         self.target_entity = Entity(
             object_id=999,
             position=vec3.zero(),
+            color=(255, 0, 0),
         )
 
         self.crosshair_color = (255, 255, 255)
@@ -71,23 +72,30 @@ class VisualAimingDemo:
 
     def update_visuals(self):
         """Update visual elements based on current environment state"""
-        # Update camera position (fixed at player position)
-        self.cam.set_position(self.env.player_pos)
-        self.cam.set_yaw_pitch(self.env.yaw, self.env.pitch)
+        # Update camera position at agent's eye level
+        agent_eye_pos = vec3.add(self.env.agent.position, vec3.from_list([0, 1.62, 0]))
+        self.cam.set_position(agent_eye_pos)
+        self.cam.set_yaw_pitch(self.env.agent.yaw, self.env.agent.pitch)
 
-        # Create target entity for rendering
-        target_pos = self.env.target_pos
-        self.target_entity.position = vec3.subtract(
-            target_pos, vec3.from_list([0, 1.62, 0])
-        )
+        # Update agent entity visuals
+        self.agent_entity.position = self.env.agent.position
+        self.agent_entity.yaw = self.env.agent.yaw
+        self.agent_entity.pitch = self.env.agent.pitch
+
+        # Update target entity visuals
+        self.target_entity.position = self.env.target.position
+        self.target_entity.yaw = self.env.target.yaw
+        self.target_entity.pitch = self.env.target.pitch
 
         # Update crosshair color based on accuracy
-        direction_to_target = vec3.subtract(self.env.target_pos, self.env.player_pos)
+        direction_to_target = vec3.subtract(self.env.target.position, agent_eye_pos)
 
-        target_yaw, target_pitch, _ = vec_to_yaw_pitch_distance(direction_to_target)
+        target_yaw, target_pitch, _ = angles.vec_to_yaw_pitch_distance(
+            direction_to_target
+        )
 
-        yaw_error = abs(yaw_difference(self.env.yaw, target_yaw))
-        pitch_error = abs(pitch_difference(self.env.pitch, target_pitch))
+        yaw_error = abs(angles.yaw_difference(self.env.agent.yaw, target_yaw))
+        pitch_error = abs(angles.pitch_difference(self.env.agent.pitch, target_pitch))
 
         # Green when accurate, red when inaccurate
         if yaw_error < 0.05 and pitch_error < 0.05:  # ~3 degrees
@@ -156,21 +164,36 @@ class VisualAimingDemo:
     def draw_gui(self):
         """Draw GUI information"""
         # Get current aiming info
-        direction_to_target = vec3.subtract(self.env.target_pos, self.env.player_pos)
+        agent_eye_pos = vec3.add(self.env.agent.position, vec3.from_list([0, 1.62, 0]))
+        direction_to_target = vec3.subtract(self.env.target.position, agent_eye_pos)
 
-        target_yaw, target_pitch, distance = vec_to_yaw_pitch_distance(
+        target_yaw, target_pitch, distance = angles.vec_to_yaw_pitch_distance(
             direction_to_target
         )
 
-        yaw_error = yaw_difference(self.env.yaw, target_yaw)
-        pitch_error = pitch_difference(self.env.pitch, target_pitch)
+        yaw_error = angles.yaw_difference(self.env.agent.yaw, target_yaw)
+        pitch_error = angles.pitch_difference(self.env.agent.pitch, target_pitch)
+
+        agent_speed = vec3.length(self.env.agent.velocity)
+        target_speed = vec3.length(self.env.target.velocity)
 
         gui_text = [
             f"Mode: {self.mode.title()} | Auto: {self.auto_step}",
-            f"Current Aim: yaw={math.degrees(self.env.yaw):.1f}°, pitch={math.degrees(self.env.pitch):.1f}°",
-            f"Target:      yaw={math.degrees(target_yaw):.1f}°, pitch={math.degrees(target_pitch):.1f}°",
-            f"Error:       yaw={math.degrees(yaw_error):.1f}°, pitch={math.degrees(pitch_error):.1f}°",
-            f"Distance: {distance:.2f}",
+            "",
+            "Agent:",
+            f"  Pos: ({self.env.agent.position[0]:.1f}, {self.env.agent.position[2]:.1f})",
+            f"  Aim: yaw={math.degrees(self.env.agent.yaw):.1f}°, pitch={math.degrees(self.env.agent.pitch):.1f}°",
+            f"  Speed: {agent_speed:.2f}",
+            "",
+            "Target:",
+            f"  Pos: ({self.env.target.position[0]:.1f}, {self.env.target.position[2]:.1f})",
+            f"  Dir: yaw={math.degrees(target_yaw):.1f}°, pitch={math.degrees(target_pitch):.1f}°",
+            f"  Speed: {target_speed:.2f}",
+            "",
+            "Error:",
+            f"  Yaw: {math.degrees(yaw_error):.1f}° | Pitch: {math.degrees(pitch_error):.1f}°",
+            f"  Distance: {distance:.2f}",
+            "",
             f"Step: {self.env.current_step}/{self.env.max_steps}",
             "",
             "Controls:",
@@ -219,6 +242,67 @@ class VisualAimingDemo:
                         if not self.auto_step:
                             reward = self.step_environment()
                             print(f"Step reward: {reward:.3f}")
+                            # self.env.agent.pitch = 0
+                            # self.agent_entity.pitch = 0
+                            # reward = self.step_environment()
+                            # self.env.agent.pitch = 0
+                            # self.agent_entity.pitch = 0
+                            # print(f"Step reward: {reward:.3f}")
+                            # forward, right, up = world.yaw_pitch_to_basis_vectors(
+                            #     self.env.agent.yaw, self.env.agent.pitch
+                            # )
+                            # agent_to_target_world = vec3.subtract(
+                            #     self.env.target.position, self.env.agent.position
+                            # )
+                            # agent_to_target_local = world.world_to_local(
+                            #     agent_to_target_world, forward, right, up
+                            # )
+                            # agent_to_target_local_dir, _ = vec3.direction_and_length(
+                            #     agent_to_target_local
+                            # )
+                            # local_yaw_diff, local_pitch_diff, _ = (
+                            #     angles.vec_to_yaw_pitch_distance(agent_to_target_local)
+                            # )
+                            # yaw_world, pitch_world, _ = (
+                            #     angles.vec_to_yaw_pitch_distance(agent_to_target_world)
+                            # )
+                            # yaw_diff_world = angles.yaw_difference(
+                            #     self.env.agent.yaw, yaw_world
+                            # )
+                            # pitch_diff_world = angles.pitch_difference(
+                            #     self.env.agent.pitch, pitch_world
+                            # )
+                            # yaw_diff_local, pitch_diff_local, _ = (
+                            #     angles.vec_to_yaw_pitch_distance(agent_to_target_local)
+                            # )
+                            # print("Current observation:", self.state)
+                            # print(
+                            #     "Agent to target (local degrees):",
+                            #     tuple(
+                            #         math.degrees(x) for x in agent_to_target_local_dir
+                            #     ),
+                            # )
+                            # print(
+                            #     "Yaw/Pitch to target (local from dir):",
+                            #     (
+                            #         math.degrees(local_yaw_diff),
+                            #         math.degrees(local_pitch_diff),
+                            #     ),
+                            # )
+                            # print(
+                            #     "Yaw/Pitch difference (world degrees):",
+                            #     (
+                            #         math.degrees(yaw_diff_world),
+                            #         math.degrees(pitch_diff_world),
+                            #     ),
+                            # )
+                            # print(
+                            #     "Yaw/Pitch difference (local degrees):",
+                            #     (
+                            #         math.degrees(yaw_diff_local),
+                            #         math.degrees(pitch_diff_local),
+                            #     ),
+                            # )
 
             # Auto-step if enabled
             if self.auto_step and current_time - self.last_step_time > self.step_delay:
@@ -229,9 +313,9 @@ class VisualAimingDemo:
             self.renderer.begin_frame()
             self.renderer.draw_ground_grid(self.cam)
 
-            # Draw target
-            if self.target_entity:
-                render_entity(self.target_entity, self.renderer, self.cam)
+            # Draw agent and target entities
+            render_entity(self.agent_entity, self.renderer, self.cam)
+            render_entity(self.target_entity, self.renderer, self.cam)
 
             # Draw crosshair
             self.draw_crosshair()
