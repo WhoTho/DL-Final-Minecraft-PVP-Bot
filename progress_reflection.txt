@@ -1,0 +1,34 @@
+=================================================Progress====================================================
+
+Over the past few weeks, we have made significant progress in 3 areas:
+1. Creating a Minecraft parallel sandbox/simulation environment to visualize the RL agent's behavior.
+2. Developing an RL framework for the agent's movement with note of human-like pvp strategies and errors.
+3. Developing an RL framework for the agent's aiming skills.
+
+Simulation Environment:
+- Created a simulation of a Minecraft PvP environment from scratch to give the RL agent a fast and accurate environment to learn in without the overhead of running a full Minecraft client.
+- Rendered the PvP agent in a flat, Minecraft-like environment where we can visually observe its behaviors to verify whether it is learning as expected, and whether our reward/penalty functions are effective in making its behavior human-like.
+- Developed options to view the agent's behavior in both first and third person perspectives
+
+Movement Skills:
+- We began by having the agent just learn to move towards the target continuously, and later added reward functions for staying within a certain distance from the target.
+- Added reward for "dodging" the target's crosshair, enabling the agent to learn evasion maneuvers. We were able to observe the agent learning to strafe left and right as well as sprint-jumping towards the target.
+- Added noise to the movement actions via exploration rate, simulating human-like errors in movement that may sometimes cause unexpected interactions with a human opponent that the agent can learn from and adapt to.
+
+Aiming Skills:
+- Started with a simple reward function that just rewarded the agent for looking exactly at the target via Yaw and Pitch errors. After observing that the agent tends to look near the top of the target's hitbox, we centered the aiming baseline at 0.3 blocks lower than the eyes of the target to minimize chances of missing by aiming too high.
+- Added reward function for smoothness of the agent's camera movement to simulate more human-like behavior and encourage the agent to learn how to track a moving target more effectively.
+
+
+================================================Challenges===================================================
+
+- Currently the training for each individual skills uses external packages to handle the RL algorithms, making it difficult to combine multiple skills into a single agent that can learn (perhaps imperfect) versions of each skills to develop new and more effective PvP strategies.
+- There is an ongoing issue with the aiming skill where the agent tends to "oscillate" its camera movement around the target instead of smoothly converging onto it. Currently the parameter combinations are working well enough to have the agent learn to aim at the target at a reasonable range, but combinations with movement may resolve this issue without further tweaks to the aiming skill framework.
+
+
+================================================Next Steps===================================================
+
+- Integrate the movement and aiming skills into a single RL framework that can train and explore both skills simultaneously. Need to verify whether this fixes the oscillating camera movement issue and whether the agent develops new strategies from the combined skillset.
+- Develop a third skillset with click timing since constantly hitting will slow down the character, so the agent needs to learn to click at appropriate times to maximize damage on the target while maintaining sufficient movement to avoid being hit. There may involve a balance between defense and offense that the agent can learn through click timing.
+- Combine all three skillsets and observe agent behavior
+- Create a testing pipeline to evaluate agent performance
