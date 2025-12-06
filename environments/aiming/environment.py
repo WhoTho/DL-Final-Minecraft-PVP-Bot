@@ -277,23 +277,23 @@ class AimingEnv(gym.Env):
         ) / (np.pi / 2)
 
         # Base reward is negative error
-        reward = -(yaw_error + pitch_error)
+        reward = -(yaw_error**2 + pitch_error**2)
 
         # Penalty for movement
         reward -= 0.1 * (abs(action[0]) + abs(action[1]))
 
         # Bonus for hit
-        # target_aabb_min, target_aabb_max = self.target.get_min_max_aabb()
-        # look_dir = vec3.from_yaw_pitch(self.agent.yaw, self.agent.pitch)
-        # did_hit, distance_to_intersection = combat.line_intersects_aabb(
-        #     self.agent.get_eye_position(),
-        #     look_dir,
-        #     target_aabb_min,
-        #     target_aabb_max,
-        # )
+        target_aabb_min, target_aabb_max = self.target.get_min_max_aabb()
+        look_dir = vec3.from_yaw_pitch(self.agent.yaw, self.agent.pitch)
+        did_hit, distance_to_intersection = combat.line_intersects_aabb(
+            self.agent.get_eye_position(),
+            look_dir,
+            target_aabb_min,
+            target_aabb_max,
+        )
 
-        # if did_hit:
-        #     reward += distance_to_target - distance_to_intersection + 2
+        if did_hit:
+            reward += distance_to_target - distance_to_intersection + 2
 
         return reward
 
