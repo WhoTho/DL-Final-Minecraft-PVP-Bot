@@ -72,9 +72,7 @@ def raycast(attacker: Entity, entities: list[Entity]):
     Perform a raycast from the attacker's eye position in the look direction,
     up to the attacker's reach distance. Return the first entity hit, or None.
     """
-    eye_pos = vec3.add(
-        attacker.position, vec3.from_list([0.0, attacker.eye_height, 0.0])
-    )
+    eye_pos = attacker.get_eye_position()
     look_dir = vec3.from_yaw_pitch(attacker.yaw, attacker.pitch)
 
     closest_entity = None

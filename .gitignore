@@ -1,6 +1,6 @@
 venv/
-*_logs/
-best_*/
+logs/*
+training_results/*/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

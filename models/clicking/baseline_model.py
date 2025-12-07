@@ -90,12 +90,18 @@ class ClickingModel:
             total_timesteps=total_timesteps, callback=eval_callback, progress_bar=True
         )
 
-        # Save final model
-        final_path = f"{save_path}_final"
-        self.model.save(final_path)
-        print(f"Model saved to {final_path}")
+        # Save final model with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamped_path = f"{save_path}_{timestamp}_final"
+        self.model.save(timestamped_path)
+        print(f"Model saved to {timestamped_path}")
 
-        return final_path
+        # Also save as _latest
+        latest_path = f"{save_path}_latest"
+        self.model.save(latest_path)
+        print(f"Model saved to {latest_path}")
+
+        return timestamped_path
 
     def evaluate(self, n_episodes: int, render: bool = False):
         """Evaluate the trained model"""

@@ -1,5 +1,5 @@
 from models.base_model import build_and_train_model
-from environments.aiming.environment import AimingEnv
+from environments.clicking.environment import ClickingEnv
 
 if __name__ == "__main__":
     import sys
@@ -10,7 +10,7 @@ if __name__ == "__main__":
         timesteps = 100_000
 
     build_and_train_model(
-        model_name="aiming",
-        environment_class=AimingEnv,
+        model_name="clicking",
+        environment_class=ClickingEnv,
         timesteps=timesteps,
     )

@@ -85,11 +85,25 @@ class Entity(RectPrism):
         """
         return vec3.from_list(
             [
-                self.position[0] + self.width / 2,
+                self.position[0],
                 self.position[1] + self.eye_height,
-                self.position[2] + self.depth / 2,
+                self.position[2],
             ]
         )
+
+    def copy(self, other: "Entity"):
+        """
+        Copy the state from another entity into this one.
+        """
+        self.position = vec3.copy(other.position)
+        self.velocity = vec3.copy(other.velocity)
+        self.yaw = other.yaw
+        self.pitch = other.pitch
+        self.on_ground = other.on_ground
+        self.is_sprinting = other.is_sprinting
+        self.invulnerablility_ticks = other.invulnerablility_ticks
+        self.health = other.health
+        self.max_health = other.max_health
 
 
 # class Player(RectPrism):

@@ -12,7 +12,7 @@ from renderer.renderer import Renderer3D
 from renderer.objects import render_entity
 from simulator.objects import Entity
 from environments.aiming.environment import AimingEnv
-from models.aiming.baseline_model import AimingModel
+from models.base_model import BaseModel
 from helpers import vec3, world, angles
 
 
@@ -28,27 +28,27 @@ class VisualAimingDemo:
 
         # Initialize environment
         self.env = AimingEnv()
-        self.mode = "perfect"  # "perfect", "random", "ai"
+        self.mode = "manual"  # "manual", "random", "ai"
 
         # Initialize agent (optional)
         self.agent = None
         if model_path:
-            try:
-                # self.agent = AimingAgent()
-                # self.agent.load(model_path)
-                self.agent = AimingModel()
-                self.agent.load(model_path)
+            self.agent = BaseModel().load(model_path)
 
-                self.mode = "ai"
-                print(f"Loaded trained model: {model_path}")
-            except FileNotFoundError:
-                print(f"Model {model_path} not found. Using perfect aiming.")
+            self.mode = "ai"
+            print(f"Loaded trained model: {model_path}")
 
         # Demo state
         self.state = None
         self.auto_step = True
         self.step_delay = 0.05  # seconds
         self.last_step_time = 0
+        self.last_reward = 0.0
+
+        # Mouse control
+        self.mouse_captured = False
+        self.just_captured = 0
+        self.mouse_sensitivity = 0.003
 
         # Visual elements
         self.agent_entity = Entity(
@@ -72,30 +72,26 @@ class VisualAimingDemo:
 
     def update_visuals(self):
         """Update visual elements based on current environment state"""
+
+        self.agent_entity.copy(self.env.agent)
+        self.target_entity.copy(self.env.target)
+
         # Update camera position at agent's eye level
-        agent_eye_pos = vec3.add(self.env.agent.position, vec3.from_list([0, 1.62, 0]))
+        agent_eye_pos = self.agent_entity.get_eye_position()
         self.cam.set_position(agent_eye_pos)
-        self.cam.set_yaw_pitch(self.env.agent.yaw, self.env.agent.pitch)
-
-        # Update agent entity visuals
-        self.agent_entity.position = self.env.agent.position
-        self.agent_entity.yaw = self.env.agent.yaw
-        self.agent_entity.pitch = self.env.agent.pitch
-
-        # Update target entity visuals
-        self.target_entity.position = self.env.target.position
-        self.target_entity.yaw = self.env.target.yaw
-        self.target_entity.pitch = self.env.target.pitch
+        self.cam.set_yaw_pitch(self.agent_entity.yaw, self.agent_entity.pitch)
 
         # Update crosshair color based on accuracy
-        direction_to_target = vec3.subtract(self.env.target.position, agent_eye_pos)
-
-        target_yaw, target_pitch, _ = angles.vec_to_yaw_pitch_distance(
-            direction_to_target
+        agent_to_target = vec3.subtract(
+            self.target_entity.position, self.agent_entity.position
         )
 
-        yaw_error = abs(angles.yaw_difference(self.env.agent.yaw, target_yaw))
-        pitch_error = abs(angles.pitch_difference(self.env.agent.pitch, target_pitch))
+        target_yaw, target_pitch, _ = angles.vec_to_yaw_pitch_distance(agent_to_target)
+
+        yaw_error = abs(angles.yaw_difference(self.agent_entity.yaw, target_yaw))
+        pitch_error = abs(
+            angles.pitch_difference(self.agent_entity.pitch, target_pitch)
+        )
 
         # Green when accurate, red when inaccurate
         if yaw_error < 0.05 and pitch_error < 0.05:  # ~3 degrees
@@ -105,15 +101,42 @@ class VisualAimingDemo:
         else:
             self.crosshair_color = (255, 255, 255)  # White
 
+    def _get_manual_action(self):
+        """Get manual action from mouse movement"""
+        action = np.zeros(2, dtype=np.float32)
+
+        if self.mouse_captured:
+            dx, dy = pygame.mouse.get_rel()
+            if dx != 0 or dy != 0:
+                if self.just_captured > 0:
+                    # Discard initial jump on capture
+                    self.just_captured -= 1
+                else:
+                    action[0] = -dx * self.mouse_sensitivity  # dyaw
+                    action[1] = dy * self.mouse_sensitivity  # dpitch
+        else:
+            # Fallback to arrow keys
+            keyboard_sensitivity = 0.05
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT]:
+                action[0] = -keyboard_sensitivity
+            if keys[pygame.K_RIGHT]:
+                action[0] = keyboard_sensitivity
+            if keys[pygame.K_UP]:
+                action[1] = keyboard_sensitivity
+            if keys[pygame.K_DOWN]:
+                action[1] = -keyboard_sensitivity
+
+        return action
+
     def get_next_action(self):
         """Get next action based on current mode"""
-        if self.mode == "perfect":
-            return self.env.get_perfect_action()
+        if self.mode == "manual":
+            return self._get_manual_action()
         elif self.mode == "random":
             return self.env.action_space.sample()
         elif self.mode == "ai" and self.agent:
             action = self.agent.predict(self.state, deterministic=True)
-            # action, _ = self.agent.act(self.state, training=False)
             return action
         else:
             raise ValueError(f"Unknown mode: {self.mode}")
@@ -122,6 +145,7 @@ class VisualAimingDemo:
         """Take one step in the environment"""
         action = self.get_next_action()
         self.state, reward, terminated, truncated, _ = self.env.step(action)
+        self.last_reward = reward
 
         if not self.auto_step:
             print("Current state:", self.state)
@@ -154,11 +178,6 @@ class VisualAimingDemo:
             (center_x, center_y - size),
             (center_x, center_y + size),
             2,
-        )
-
-        # Draw center dot
-        pygame.draw.circle(
-            self.renderer.screen, self.crosshair_color, (center_x, center_y), 2
         )
 
     def draw_gui(self):
@@ -195,9 +214,12 @@ class VisualAimingDemo:
             f"  Distance: {distance:.2f}",
             "",
             f"Step: {self.env.current_step}/{self.env.max_steps}",
+            f"Last Reward: {self.last_reward:.3f}",
             "",
             "Controls:",
-            "1/2/3 = Perfect/Random/AI mode",
+            "1/2/3 = Manual/Random/AI mode",
+            "Mouse: Left click to capture (manual)",
+            "ESC = Release mouse",
             "Space = Manual step",
             "A = Toggle auto-step",
             "R = Reset episode",
@@ -220,18 +242,29 @@ class VisualAimingDemo:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1 and self.mode == "manual":
+                        if not self.mouse_captured:
+                            self.capture_mouse()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_q:
                         running = False
                     elif event.key == pygame.K_1:
-                        self.mode = "perfect"
-                        print("Mode: Perfect Aiming")
+                        self.mode = "manual"
+                        print("Mode: Manual (mouse look)")
                     elif event.key == pygame.K_2:
                         self.mode = "random"
+                        if self.mouse_captured:
+                            self.release_mouse()
                         print("Mode: Random Aiming")
                     elif event.key == pygame.K_3:
                         self.mode = "ai"
+                        if self.mouse_captured:
+                            self.release_mouse()
                         print("Mode: AI Aiming")
+                    elif event.key == pygame.K_ESCAPE:
+                        if self.mouse_captured:
+                            self.release_mouse()
                     elif event.key == pygame.K_a:
                         self.auto_step = not self.auto_step
                         print(f"Auto-step: {self.auto_step}")
@@ -242,67 +275,6 @@ class VisualAimingDemo:
                         if not self.auto_step:
                             reward = self.step_environment()
                             print(f"Step reward: {reward:.3f}")
-                            # self.env.agent.pitch = 0
-                            # self.agent_entity.pitch = 0
-                            # reward = self.step_environment()
-                            # self.env.agent.pitch = 0
-                            # self.agent_entity.pitch = 0
-                            # print(f"Step reward: {reward:.3f}")
-                            # forward, right, up = world.yaw_pitch_to_basis_vectors(
-                            #     self.env.agent.yaw, self.env.agent.pitch
-                            # )
-                            # agent_to_target_world = vec3.subtract(
-                            #     self.env.target.position, self.env.agent.position
-                            # )
-                            # agent_to_target_local = world.world_to_local(
-                            #     agent_to_target_world, forward, right, up
-                            # )
-                            # agent_to_target_local_dir, _ = vec3.direction_and_length(
-                            #     agent_to_target_local
-                            # )
-                            # local_yaw_diff, local_pitch_diff, _ = (
-                            #     angles.vec_to_yaw_pitch_distance(agent_to_target_local)
-                            # )
-                            # yaw_world, pitch_world, _ = (
-                            #     angles.vec_to_yaw_pitch_distance(agent_to_target_world)
-                            # )
-                            # yaw_diff_world = angles.yaw_difference(
-                            #     self.env.agent.yaw, yaw_world
-                            # )
-                            # pitch_diff_world = angles.pitch_difference(
-                            #     self.env.agent.pitch, pitch_world
-                            # )
-                            # yaw_diff_local, pitch_diff_local, _ = (
-                            #     angles.vec_to_yaw_pitch_distance(agent_to_target_local)
-                            # )
-                            # print("Current observation:", self.state)
-                            # print(
-                            #     "Agent to target (local degrees):",
-                            #     tuple(
-                            #         math.degrees(x) for x in agent_to_target_local_dir
-                            #     ),
-                            # )
-                            # print(
-                            #     "Yaw/Pitch to target (local from dir):",
-                            #     (
-                            #         math.degrees(local_yaw_diff),
-                            #         math.degrees(local_pitch_diff),
-                            #     ),
-                            # )
-                            # print(
-                            #     "Yaw/Pitch difference (world degrees):",
-                            #     (
-                            #         math.degrees(yaw_diff_world),
-                            #         math.degrees(pitch_diff_world),
-                            #     ),
-                            # )
-                            # print(
-                            #     "Yaw/Pitch difference (local degrees):",
-                            #     (
-                            #         math.degrees(yaw_diff_local),
-                            #         math.degrees(pitch_diff_local),
-                            #     ),
-                            # )
 
             # Auto-step if enabled
             if self.auto_step and current_time - self.last_step_time > self.step_delay:
@@ -326,6 +298,20 @@ class VisualAimingDemo:
             self.renderer.finish_frame()
 
         pygame.quit()
+
+    def capture_mouse(self):
+        """Capture mouse for manual FPS-style look"""
+        self.mouse_captured = True
+        self.just_captured = 2
+        pygame.event.set_grab(True)
+        pygame.mouse.set_visible(False)
+        pygame.mouse.get_rel()  # reset relative movement
+
+    def release_mouse(self):
+        """Release mouse capture"""
+        self.mouse_captured = False
+        pygame.event.set_grab(False)
+        pygame.mouse.set_visible(True)
 
 
 def main():

@@ -19,7 +19,9 @@ class Renderer3D:
         self.width = width
         self.height = height
         self.clock = pygame.time.Clock()
-        self.fast_text_renderer = FastTextRenderer("Arial", 20, (255, 255, 255), True)
+        self.fast_text_renderer = FastTextRenderer(
+            "Consolas", 16, (255, 255, 255), True
+        )
 
     def set_text_renderer_settings(
         self, font_path=None, size=20, color=(255, 255, 255), antialias=True

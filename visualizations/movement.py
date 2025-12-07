@@ -11,10 +11,10 @@ from renderer.cameras import FirstPersonCamera
 from renderer.renderer import Renderer3D
 from renderer.objects import render_entity
 from simulator.objects import Entity
-from environments.movement.environment import MovementEnv, TargetModes
+from environments.movement.environment import MovementEnv
 from helpers import vec3
 from helpers.angles import vec_to_yaw_pitch_distance
-from models.movement.baseline_model import MovementModel
+from models.base_model import BaseModel
 
 
 class VisualMovementDemo:
@@ -34,14 +34,8 @@ class VisualMovementDemo:
         # Initialize agent (optional)
         self.agent = None
         if model_path:
-            try:
-                # TODO: Add model loading when movement models are implemented
-                self.agent = MovementModel()
-                self.agent.load(model_path)
-                self.mode = "ai"
-                # print(f"Model loading not yet implemented: {model_path}")
-            except Exception as e:
-                print(f"Failed to load model: {e}")
+            self.agent = BaseModel().load(model_path)
+            self.mode = "ai"
 
         # Demo state
         self.state = None
@@ -230,13 +224,8 @@ class VisualMovementDemo:
         agent_speed = vec3.length(self.env.agent.velocity)
         target_speed = vec3.length(self.env.target.velocity)
 
-        mode_name = TargetModes.MODE_NAMES.get(
-            self.env.target_mode, f"MODE_{self.env.target_mode:03x}"
-        )
-
         gui_text = [
             f"Mode: {self.mode.title()} | Auto: {self.auto_step}",
-            f"Target Mode: {mode_name}",
             "",
             f"Step: {self.env.current_step}/{self.env.max_steps}",
             f"Distance: {distance:.2f}m",
@@ -260,9 +249,9 @@ class VisualMovementDemo:
             "Q = Quit",
             "",
             "Agent Input State:",
-            f"  W: {'✓' if self.env.agent_input.w else ' '} | A: {'✓' if self.env.agent_input.a else ' '}",
-            f"  S: {'✓' if self.env.agent_input.s else ' '} | D: {'✓' if self.env.agent_input.d else ' '}",
-            f"  SPACE: {'✓' if self.env.agent_input.space else ' '} | SPRINT: {'✓' if self.env.agent_input.sprint else ' '}",
+            f"         W: {'X' if self.env.agent_input.w else '-'}",
+            f"  A: {'X' if self.env.agent_input.a else '-'} | S: {'X' if self.env.agent_input.s else '-'} | D: {'X' if self.env.agent_input.d else '-'}",
+            f"  SPACE: {'X' if self.env.agent_input.space else '-'} | SPRINT: {'X' if self.env.agent_input.sprint else '-'}",
         ]
 
         self.renderer.draw_gui_lines(gui_text, (10, 10), color=(255, 255, 255))

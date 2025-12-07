@@ -12,7 +12,7 @@ from renderer.renderer import Renderer3D
 from renderer.objects import render_entity
 from simulator.objects import Entity
 from environments.clicking.environment import ClickingEnv
-from models.clicking.baseline_model import ClickingModel
+from models.base_model import BaseModel
 from helpers import vec3, angles
 
 
@@ -33,14 +33,9 @@ class VisualClickingDemo:
         # Initialize agent (optional)
         self.agent = None
         if model_path:
-            try:
-                self.agent = ClickingModel()
-                self.agent.load(model_path)
-                self.mode = "ai"
-                print(f"Loaded trained model: {model_path}")
-            except FileNotFoundError:
-                print(f"Model {model_path} not found. Using random clicking.")
-
+            self.agent = BaseModel().load(model_path)
+            self.mode = "ai"
+            print(f"Loaded trained model: {model_path}")
         # Demo state
         self.state = None
         self.auto_step = True
@@ -73,20 +68,13 @@ class VisualClickingDemo:
 
     def update_visuals(self):
         """Update visual elements based on current environment state"""
-        # Update camera position at agent's eye level
-        agent_eye_pos = vec3.add(self.env.agent.position, vec3.from_list([0, 1.62, 0]))
-        self.cam.set_position(agent_eye_pos)
-        self.cam.set_yaw_pitch(self.env.agent.yaw, self.env.agent.pitch)
+        # Update entities
+        self.agent_entity.copy(self.env.agent)
+        self.target_entity.copy(self.env.target)
 
-        # Update agent entity visuals
-        self.agent_entity.position = self.env.agent.position
-        self.agent_entity.yaw = self.env.agent.yaw
-        self.agent_entity.pitch = self.env.agent.pitch
-
-        # Update target entity visuals
-        self.target_entity.position = self.env.target.position
-        self.target_entity.yaw = self.env.target.yaw
-        self.target_entity.pitch = self.env.target.pitch
+        # Update camera
+        self.cam.set_position(self.agent_entity.get_eye_position())
+        self.cam.set_yaw_pitch(self.agent_entity.yaw, self.agent_entity.pitch)
 
     def get_next_action(self):
         """Get next action based on current mode"""
