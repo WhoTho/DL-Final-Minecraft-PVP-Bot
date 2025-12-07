@@ -265,7 +265,10 @@ class AimingEnv(gym.Env):
     def _compute_reward(self, action):
         """Reward based on how close the agent is aiming at the target"""
         # Direction to target
-        agent_to_target = vec3.subtract(self.target.position, self.agent.position)
+        agent_to_target = vec3.subtract(
+            vec3.subtract(self.target.position, vec3.from_list([0, 0.3, 0])),
+            self.agent.position,
+        )
         yaw_to_target, pitch_to_target, distance_to_target = (
             angles.vec_to_yaw_pitch_distance(agent_to_target)
         )
@@ -280,20 +283,20 @@ class AimingEnv(gym.Env):
         reward = -(yaw_error**2 + pitch_error**2)
 
         # Penalty for movement
-        reward -= 0.1 * (abs(action[0]) + abs(action[1]))
+        reward -= 0.5 * (abs(action[0]) + abs(action[1]))
 
         # Bonus for hit
-        target_aabb_min, target_aabb_max = self.target.get_min_max_aabb()
-        look_dir = vec3.from_yaw_pitch(self.agent.yaw, self.agent.pitch)
-        did_hit, distance_to_intersection = combat.line_intersects_aabb(
-            self.agent.get_eye_position(),
-            look_dir,
-            target_aabb_min,
-            target_aabb_max,
-        )
+        # target_aabb_min, target_aabb_max = self.target.get_min_max_aabb()
+        # look_dir = vec3.from_yaw_pitch(self.agent.yaw, self.agent.pitch)
+        # did_hit, distance_to_intersection = combat.line_intersects_aabb(
+        #     self.agent.get_eye_position(),
+        #     look_dir,
+        #     target_aabb_min,
+        #     target_aabb_max,
+        # )
 
-        if did_hit:
-            reward += distance_to_target - distance_to_intersection + 2
+        # if did_hit:
+        #     reward += (distance_to_target - distance_to_intersection + 2) * 0.01
 
         return reward
 

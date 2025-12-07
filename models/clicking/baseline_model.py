@@ -1,10 +1,10 @@
 """
-Baseline aiming model using Stable Baselines3 RL algorithms
+Baseline clicking model using Stable Baselines3 RL algorithms
 """
 
 import numpy as np
 import gymnasium as gym
-from environments.aiming.environment import AimingEnv
+from environments.clicking.environment import ClickingEnv
 
 try:
     from stable_baselines3 import PPO, SAC, TD3, A2C
@@ -27,7 +27,7 @@ except ImportError:
     SB3_AVAILABLE = False
 
 
-class AimingModel:
+class ClickingModel:
     def __init__(self, env_kwargs=None, model_kwargs=None):
         self.env_kwargs = env_kwargs or {}
         self.model_kwargs = model_kwargs or {}
@@ -35,11 +35,11 @@ class AimingModel:
 
         # Create vectorized training environment (4 parallel envs)
         self.env = make_vec_env(
-            lambda: AimingEnv(**self.env_kwargs),
+            lambda: ClickingEnv(**self.env_kwargs),
             n_envs=self.n_envs,
         )
         # Single eval environment
-        self.eval_env = AimingEnv(**self.env_kwargs)
+        self.eval_env = ClickingEnv(**self.env_kwargs)
 
         default_kwargs = {
             "learning_rate": 3e-4,
@@ -49,7 +49,7 @@ class AimingModel:
             "gamma": 0.99,
             "gae_lambda": 0.95,
             "clip_range": 0.2,
-            "ent_coef": 0,
+            "ent_coef": 0.01,
             "vf_coef": 0.5,
             "max_grad_norm": 0.5,
             "policy_kwargs": dict(net_arch=[dict(pi=[64, 64], vf=[64, 64])]),
@@ -85,7 +85,7 @@ class AimingModel:
         )
 
         # Train the model
-        print(f"Training aiming model for {total_timesteps} timesteps...")
+        print(f"Training clicking model for {total_timesteps} timesteps...")
         self.model.learn(
             total_timesteps=total_timesteps, callback=eval_callback, progress_bar=True
         )
@@ -102,7 +102,7 @@ class AimingModel:
         if self.model is None:
             raise ValueError("Model not trained or loaded yet")
 
-        env = AimingEnv(render_mode="human" if render else None)
+        env = ClickingEnv(render_mode="human" if render else None)
 
         mean_reward, std_reward = evaluate_policy(
             self.model,
@@ -127,13 +127,13 @@ class AimingModel:
         """Load a trained model"""
         # Recreate vectorized environment for loading
         env = make_vec_env(
-            lambda: AimingEnv(**self.env_kwargs),
+            lambda: ClickingEnv(**self.env_kwargs),
             n_envs=self.n_envs,
         )
         self.model = PPO.load(path, env=env)
         self.env = env
         print(
-            f"Loaded movement model from {path} with {self.n_envs} parallel environments"
+            f"Loaded clicking model from {path} with {self.n_envs} parallel environments"
         )
 
     def save(self, path):
@@ -150,12 +150,12 @@ def train_model(timesteps: int):
     Train the best performing model with more timesteps
     """
     print(f"Training PPO model for {timesteps} timesteps...")
-    model = AimingModel()
+    model = ClickingModel()
     save_path = model.train(
         total_timesteps=timesteps,
         eval_freq=timesteps // 20,
         eval_episodes=10,
-        save_path=f"best_baseline_ppo_aiming",
+        save_path=f"best_baseline_ppo_clicking",
     )
 
     # Final evaluation
