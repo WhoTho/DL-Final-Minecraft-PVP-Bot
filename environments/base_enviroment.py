@@ -7,7 +7,7 @@ from simulator.objects import Entity
 from simulator.physics import simulate, InputState, GROUND_Y
 
 TPS = 20  # Simulation ticks per second
-DEFAULT_HEALTH = 100.0
+DEFAULT_HEALTH = 10.0
 MAX_ANGLE_PER_STEP = np.radians(720 / TPS)
 
 
@@ -100,7 +100,7 @@ class BaseEnv(gym.Env):
     def step(self, action):
         raise NotImplementedError("Step method not implemented in BaseEnv")
 
-    def _get_observation(self):
+    def _get_observation(self, randomize_target_aim: bool = False):
         """Get current observation state in agent's local coordinate frame"""
         # Create rotation matrix to transform world vectors to agent's local frame
         forward, right, up = world.yaw_pitch_to_basis_vectors(
@@ -161,9 +161,21 @@ class BaseEnv(gym.Env):
                 agent_on_ground,
                 target_on_ground,
                 # Target look direction (local frame)
-                target_look_local[0],
-                target_look_local[1],
-                target_look_local[2],
+                (
+                    target_look_local[0]
+                    if not randomize_target_aim
+                    else self.np_random.uniform(-1, 1)
+                ),
+                (
+                    target_look_local[1]
+                    if not randomize_target_aim
+                    else self.np_random.uniform(-1, 1)
+                ),
+                (
+                    target_look_local[2]
+                    if not randomize_target_aim
+                    else self.np_random.uniform(-1, 1)
+                ),
                 # Invulnerability status (normalized)
                 self.agent.invulnerablility_ticks / 20.0,
             ],
@@ -192,9 +204,19 @@ class BaseEnv(gym.Env):
             input_state.w = False
             input_state.s = True
 
-        strafe_choice = self.np_random.choice(
-            ["left", "right", "none"], p=[0.4, 0.4, 0.2]
-        )
+        # 50% to strafe randomly or follow current input keys
+        if self.np_random.random() < 0.5:
+            strafe_choice = self.np_random.choice(
+                ["left", "right", "none"], p=[0.4, 0.4, 0.2]
+            )
+        else:
+            if input_state.a:
+                strafe_choice = "left"
+            elif input_state.d:
+                strafe_choice = "right"
+            else:
+                strafe_choice = "none"
+
         if strafe_choice == "left":
             input_state.a = True
             input_state.d = False

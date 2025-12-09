@@ -133,7 +133,9 @@ def try_attack(attacker: Entity, entities: list[Entity]) -> bool:
     ratio_x = target.position[0] - attacker.position[0]
     ratio_z = target.position[2] - attacker.position[2]
 
-    apply_knockback(target, ratio_x, ratio_z, attacker.is_sprinting)
+    apply_knockback(
+        target, ratio_x, ratio_z, attacker.is_sprinting and attacker.on_ground
+    )
 
     # hit slowdown and sprint cancel
     attacker.velocity[0] *= ATTACK_SLOWDOWN_FACTOR

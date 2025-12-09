@@ -24,7 +24,7 @@ class Renderer3D:
         )
 
     def set_text_renderer_settings(
-        self, font_path=None, size=20, color=(255, 255, 255), antialias=True
+        self, font_path=None, size=16, color=(255, 255, 255), antialias=True
     ):
         self.fast_text_renderer = FastTextRenderer(font_path, size, color, antialias)
 
@@ -63,6 +63,8 @@ class Renderer3D:
         CELL_SIZE = 1.0
         color1 = (160, 160, 160)
         color2 = (130, 130, 130)
+
+        ring_color = (100, 100, 100)
 
         cx, _, cz = cam.position
         yaw = cam.yaw
@@ -120,7 +122,19 @@ class Renderer3D:
                     screen_pts.append(sp)
 
                 if len(screen_pts) == 4:
-                    color = color1 if ((int(wx) + int(wz)) % 2 == 0) else color2
+                    cell_x = int(wx) % 6
+                    cell_z = int(wz) % 6
+                    if (
+                        cell_x % 5
+                        and cell_z % 5
+                        and (
+                            (cell_z == 1 or cell_z == 4) or (cell_x == 1 or cell_x == 4)
+                        )
+                    ) == 1:
+                        color = ring_color
+                    else:
+                        color = color1 if (int(wx) + int(wz)) % 2 == 0 else color2
+
                     pygame.draw.polygon(self.screen, color, screen_pts)
 
     def draw_ground_grid_lines(self, cam, cell_size=1.0, radius=40, major_every=5):

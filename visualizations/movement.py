@@ -68,15 +68,9 @@ class VisualMovementDemo:
 
     def update_visuals(self):
         """Update visual elements based on current environment state"""
-        # Update entity positions
-        self.agent_entity.position = self.env.agent.position
-        self.target_entity.position = self.env.target.position
-
-        # Update entity orientation (for visual reference)
-        self.agent_entity.yaw = self.env.agent.yaw
-        self.agent_entity.pitch = self.env.agent.pitch
-        self.target_entity.yaw = self.env.target.yaw
-        self.target_entity.pitch = self.env.target.pitch
+        # Update entities
+        self.agent_entity.copy(self.env.agent)
+        self.target_entity.copy(self.env.target)
 
         # Update camera to follow the action
         if self.follow_agent:
@@ -95,22 +89,17 @@ class VisualMovementDemo:
                 yaw, pitch, _ = vec_to_yaw_pitch_distance(look_direction)
                 self.cam.set_yaw_pitch(yaw, pitch)
         else:
-            agent_to_target = vec3.subtract(
-                self.env.target.position, self.env.agent.position
-            )
-            yaw, pitch, _ = vec_to_yaw_pitch_distance(agent_to_target)
-            self.env.agent.yaw = yaw
-            self.env.agent.pitch = 0
-            self.agent_entity.yaw = yaw
-            self.agent_entity.pitch = 0
+            # agent_to_target = vec3.subtract(
+            #     self.env.target.position, self.env.agent.position
+            # )
+            # yaw, pitch, _ = vec_to_yaw_pitch_distance(agent_to_target)
+            # self.env.agent.yaw = yaw
+            # self.env.agent.pitch = 0
+            # self.agent_entity.yaw = yaw
+            # self.agent_entity.pitch = 0
             # Fixed camera at agent position
-            self.cam.set_position(
-                vec3.add(
-                    self.env.agent.position,
-                    vec3.from_list([0, 1.62, 0]),
-                )
-            )
-            self.cam.set_yaw_pitch(self.env.agent.yaw, self.env.agent.pitch)
+            self.cam.set_position(self.agent_entity.get_eye_position())
+            self.cam.set_yaw_pitch(self.agent_entity.yaw, self.agent_entity.pitch)
 
     def get_next_action(self):
         """Get next action based on current mode"""

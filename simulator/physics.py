@@ -72,9 +72,15 @@ def move_entity_with_heading(entity: Entity, strafe: float, forward: float):
         if entity.is_sprinting:
             entity_speed_attribute *= 1 + SPRINT_SPEED
 
-        inertia = DEFAULT_SLIPPERINESS * 0.91  # AIRBORNE_INERTIA?
+        # inertia = DEFAULT_SLIPPERINESS * 0.91  # AIRBORNE_INERTIA?
+        # acceleration = entity_speed_attribute * (
+        #     0.1627714 / (inertia * inertia * inertia)
+        # )
+        # same math lowkey
+        inertia = DEFAULT_SLIPPERINESS * 0.91
+        slipperiness = DEFAULT_SLIPPERINESS
         acceleration = entity_speed_attribute * (
-            0.1627714 / (inertia * inertia * inertia)
+            0.216 / (slipperiness * slipperiness * slipperiness)
         )
         if acceleration < 0:
             acceleration = 0  # acceleration should not be negative
@@ -139,13 +145,14 @@ def simulate(entity: Entity, controls: InputState):
     strafe = 0.0
     forward = 0.0
 
+    strafe = (float(controls.d) - float(controls.a)) * 0.98
+    forward = (float(controls.w) - float(controls.s)) * 0.98
+
     if controls.space:
         if entity.on_ground:
             entity.velocity[1] = JUMP_VELOCITY
             if entity.is_sprinting and forward > 0:
                 entity.velocity[0] += math.sin(entity.yaw) * 0.2
                 entity.velocity[2] += math.cos(entity.yaw) * 0.2
-    strafe = (float(controls.d) - float(controls.a)) * 0.98
-    forward = (float(controls.w) - float(controls.s)) * 0.98
 
     move_entity_with_heading(entity, strafe, forward)

@@ -9,8 +9,8 @@ from simple_bot import SimpleBot
 
 
 def main():
-    WIDTH, HEIGHT = 2000, 1400
-    # WIDTH, HEIGHT = 1000, 700
+    # WIDTH, HEIGHT = 2000, 1400
+    WIDTH, HEIGHT = 1000, 700
     center_x, center_y = WIDTH // 2, HEIGHT // 2
 
     renderer = Renderer3D(WIDTH, HEIGHT, "Minecraft PvP Demo")

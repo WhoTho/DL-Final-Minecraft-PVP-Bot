@@ -27,8 +27,18 @@ class AimingEnv(BaseEnv):
             dtype=np.float32,
         )
 
+        # Tracking previous errors for reward calculation
+        self.prev_yaw_err = 0.0
+        self.prev_pitch_err = 0.0
+        self.prev_err = 0.0
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+
+        # Reset tracking variables
+        self.prev_yaw_err = 0.0
+        self.prev_pitch_err = 0.0
+        self.prev_err = 0.0
 
         obs = self._get_observation()
         return obs, {}
@@ -70,44 +80,37 @@ class AimingEnv(BaseEnv):
         terminated = False
         truncated = self.current_step >= self.max_steps
 
-        obs = self._get_observation()
+        obs = self._get_observation(randomize_target_aim=True)
         return obs, reward, terminated, truncated, {}
 
     def _compute_reward(self, action):
-        """Reward based on how close the agent is aiming at the target"""
-        # Direction to target
-        agent_to_target = vec3.subtract(
-            vec3.subtract(self.target.position, vec3.from_list([0, 0.3, 0])),
-            self.agent.position,
-        )
-        yaw_to_target, pitch_to_target, distance_to_target = (
-            angles.vec_to_yaw_pitch_distance(agent_to_target)
-        )
+        # direction and errors
+        agent_to_target = vec3.subtract(self.target.position, self.agent.position)
+        agent_to_target[1] = min(0, agent_to_target[1])  # don't aim upwards
+        agent_to_target[1] -= 0.2  # aim a little lower to hit the body
+        yaw_t, pitch_t, dist = angles.vec_to_yaw_pitch_distance(agent_to_target)
 
-        # Angular error
-        yaw_error = abs(angles.yaw_difference(self.agent.yaw, yaw_to_target)) / np.pi
-        pitch_error = abs(
-            angles.pitch_difference(self.agent.pitch, pitch_to_target)
-        ) / (np.pi / 2)
+        yaw_err = abs(angles.yaw_difference(self.agent.yaw, yaw_t))
+        pitch_err = abs(angles.pitch_difference(self.agent.pitch, pitch_t))
+        total_err = yaw_err + pitch_err
 
-        # Base reward is negative error
-        reward = -(yaw_error**2 + pitch_error**2)
+        reward = 0
 
-        # Penalty for movement
-        reward -= 0.3 * (abs(action[0]) + abs(action[1]))
+        # continuous improvement reward
+        reward += 0.5 * (self.prev_err - total_err)
 
-        # Bonus for hit
-        # target_aabb_min, target_aabb_max = self.target.get_min_max_aabb()
-        # look_dir = vec3.from_yaw_pitch(self.agent.yaw, self.agent.pitch)
-        # did_hit, distance_to_intersection = combat.line_intersects_aabb(
-        #     self.agent.get_eye_position(),
-        #     look_dir,
-        #     target_aabb_min,
-        #     target_aabb_max,
-        # )
+        # aim retention cone
+        if yaw_err < 0.07 and pitch_err < 0.07:  # ~4 degrees
+            reward += 0.3 * ((0.07 - yaw_err) / 0.07)
+            reward += 0.3 * ((0.07 - pitch_err) / 0.07)
 
-        # if did_hit:
-        #     reward += 0.5
+        # movement penalty
+        reward -= 0.1 * (abs(action[0]) + abs(action[1]))
+
+        # update prev for next step
+        self.prev_yaw_err = yaw_err
+        self.prev_pitch_err = pitch_err
+        self.prev_err = total_err
 
         return reward
 

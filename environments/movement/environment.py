@@ -19,9 +19,9 @@ class MovementEnv(BaseEnv):
         super().__init__(max_steps=400, render_mode=render_mode)
 
         self.prev_distance = 0.0
+        self.agent_yaw_velocity = 0.0
         self.target_yaw_velocity = 0.0
         self.target_last_knockback_at = 0
-        self.prev_target_look_direction = vec3.from_yaw_pitch(0.0, 0.0)
 
         # Action space: W, A, S, D, SPACE, SPRINT (6 discrete actions)
         self.action_space = spaces.MultiBinary(6)
@@ -31,11 +31,9 @@ class MovementEnv(BaseEnv):
 
         # Reset tracking variables
         self.prev_distance = vec3.distance(self.agent.position, self.target.position)
+        self.agent_yaw_velocity = 0.0
         self.target_yaw_velocity = 0.0
         self.target_last_knockback_at = 0
-        self.prev_target_look_direction = vec3.from_yaw_pitch(
-            self.target.yaw, self.target.pitch
-        )
 
         return self._get_observation(), {}
 
@@ -56,9 +54,33 @@ class MovementEnv(BaseEnv):
         if action[5]:
             input_state.sprint = True
 
-        # Keep fixed orientation
-        input_state.yaw = self.agent.yaw
-        input_state.pitch = self.agent.pitch
+        # Update agent yaw to look at target (with limited angular velocity)
+        agent_to_target = vec3.subtract(self.target.position, self.agent.position)
+        if vec3.length(agent_to_target) > 1e-6:
+            target_yaw, target_pitch, _ = angles.vec_to_yaw_pitch_distance(
+                agent_to_target
+            )
+            yaw_diff = angles.yaw_difference(self.agent.yaw, target_yaw)
+
+            # aiming in same direction speeds up turning slowly, opposite direction slows down quickly
+            if np.sign(yaw_diff) == np.sign(self.agent_yaw_velocity):
+                self.agent_yaw_velocity += yaw_diff * 0.2
+            else:
+                self.agent_yaw_velocity += yaw_diff * 0.6
+            self.agent_yaw_velocity *= 0.8  # damping
+
+            self.agent_yaw_velocity = np.clip(
+                self.agent_yaw_velocity,
+                -MAX_ANGLE_PER_STEP,
+                MAX_ANGLE_PER_STEP,
+            )
+            input_state.yaw = angles.yaw_difference(
+                0, self.agent.yaw + self.agent_yaw_velocity
+            )
+            input_state.pitch = target_pitch
+        else:
+            input_state.yaw = self.agent.yaw
+            input_state.pitch = self.agent.pitch
 
         return input_state
 
@@ -95,10 +117,10 @@ class MovementEnv(BaseEnv):
 
             # aiming in same direction speeds up turning slowly, opposite direction slows down quickly
             if np.sign(yaw_diff) == np.sign(self.target_yaw_velocity):
-                self.target_yaw_velocity += yaw_diff * 0.3
+                self.target_yaw_velocity += yaw_diff * 0.2
             else:
-                self.target_yaw_velocity += yaw_diff * 0.6
-            self.target_yaw_velocity *= 0.8  # damping
+                self.target_yaw_velocity += yaw_diff * 0.4
+            self.target_yaw_velocity *= 0.9  # damping
 
             self.target_yaw_velocity = np.clip(
                 self.target_yaw_velocity,
@@ -113,11 +135,6 @@ class MovementEnv(BaseEnv):
     def step(self, action):
         # Convert action to input
         self.agent_input = self._action_to_input(action)
-
-        # Store previous target look direction before update
-        self.prev_target_look_direction = vec3.from_yaw_pitch(
-            self.target.yaw, self.target.pitch
-        )
 
         # Update target behavior
         self._update_target_behavior()
@@ -152,7 +169,7 @@ class MovementEnv(BaseEnv):
 
         # Tiny pentaly for jumping
         if current_action[4]:  # space
-            reward -= 0.01
+            reward -= 0.05
 
         # Reward being within optimal distance band
         optimal_distance_min = 2.0

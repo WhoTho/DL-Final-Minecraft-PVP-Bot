@@ -86,60 +86,61 @@ class ClickingEnv(BaseEnv):
         terminated = self.current_step >= self.max_steps
         truncated = False
 
-        return self._get_observation(), reward, terminated, truncated, {}
+        return (
+            self._get_observation(randomize_target_aim=True),
+            reward,
+            terminated,
+            truncated,
+            {},
+        )
 
     def _calculate_reward(self, clicked, hit):
         """
-        Reward structure:
-        - Successful hit: +1.0 (base) + bonus for good aim
-        - Wasted click (in range but missed): -0.3
-        - Wasted click (out of range): -0.5
-        - Good no-click (out of range, didn't click): +0.1
-        - Opportunity missed (in range + good aim, didn't click): -0.2
+        Reward structure using AABB intersection:
+        - Successful hit: +1.0
+        - Wasted click (could have hit but didn't): -0.3
+        - Wasted click (couldn't hit - no intersection or invuln): -0.5
+        - Opportunity missed (could have hit, didn't click): -0.2
+        - Good no-click (couldn't hit, didn't click): +0.05
         """
         reward = 0.0
 
-        # Get target info
-        agent_to_target = vec3.subtract(self.target.position, self.agent.position)
-        distance = vec3.length(agent_to_target)
-        target_yaw, target_pitch, _ = angles.vec_to_yaw_pitch_distance(agent_to_target)
-        yaw_error = abs(angles.yaw_difference(self.agent.yaw, target_yaw))
-        pitch_error = abs(angles.pitch_difference(self.agent.pitch, target_pitch))
+        # Use raycast to determine if we COULD hit (same logic as try_attack)
+        eye_pos = self.agent.get_eye_position()
+        look_dir = vec3.from_yaw_pitch(self.agent.yaw, self.agent.pitch)
+        aabb_min, aabb_max = self.target.get_min_max_aabb()
 
-        # Thresholds
-        aim_threshold_yaw = np.radians(15)  # 15 degree tolerance
-        aim_threshold_pitch = np.radians(15)
-        range_threshold = 3.0  # Max attack range (3 blocks)
+        # Check AABB intersection
+        intersects_aabb, distance = combat.line_intersects_aabb(
+            eye_pos, look_dir, aabb_min, aabb_max
+        )
 
-        in_range = distance <= range_threshold
-        good_aim = yaw_error <= aim_threshold_yaw and pitch_error <= aim_threshold_pitch
-        invuln_ready = self.target.invulnerablility_ticks <= 0
+        # Can hit if: intersects AABB, within reach, and not invulnerable
+        can_hit = (
+            intersects_aabb
+            and distance <= self.agent.reach
+            and self.target.invulnerablility_ticks <= 0
+        )
 
         # Hit: best outcome
         if hit:
             reward += 1.0
-            # Bonus for hitting with excellent aim
-            if yaw_error < np.radians(5) and pitch_error < np.radians(5):
-                reward += 0.5
             return reward
 
         # Clicked but didn't hit
         if clicked:
-            if not in_range:
-                # Wasted click: out of range
-                reward -= 0.5
-            elif invuln_ready and good_aim:
-                # Hit should have happened - penalty for failure (might be rare due to physics)
-                reward -= 0.2
-            else:
-                # Wasted click: in range but bad aim or still invuln
+            if can_hit:
+                # Should have hit but didn't (rare edge case, maybe physics timing)
                 reward -= 0.3
+            else:
+                # Wasted click: couldn't have hit anyway
+                reward -= 0.5
         else:
             # Didn't click
-            if in_range and good_aim and invuln_ready:
-                # Missed opportunity: could have hit
+            if can_hit:
+                # Missed opportunity: should have clicked
                 reward -= 0.2
-            elif not in_range:
+            else:
                 # Correctly didn't waste a click
                 reward += 0.05
 
